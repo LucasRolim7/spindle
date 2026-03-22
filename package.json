@@ -1,0 +1,12 @@
+{
+  "name": "spindle",
+  "version": "1.0.0",
+  "description": "Your Discogs library, alive with sound",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
