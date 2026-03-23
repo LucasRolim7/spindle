@@ -406,6 +406,10 @@ body::after{
   scroll-snap-align:start;
   cursor:pointer;
   animation:ci .4s ease both;
+  /* Extra padding absorbs the hover scale overshoot so mouseleave
+     doesn't fire when the cover expands beyond the card boundary */
+  padding:10px;
+  margin:-10px;
 }
 @keyframes ci{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
 
@@ -519,7 +523,7 @@ body::after{
 .cy{font-size:8px;color:var(--muted);margin-top:3px;letter-spacing:.06em}
 
 /* SKELETON */
-.sk{width:calc((100vw - 4rem - 60px) / 4);flex-shrink:0}
+.sk{width:calc((100vw - 4rem - 60px) / 4);flex-shrink:0;padding:10px;margin:-10px}
 .skc{
   width:100%;aspect-ratio:1/1;border-radius:var(--radius);
   background:rgba(255,255,255,.4);
@@ -794,8 +798,36 @@ body::after{
   <!-- SUGGESTIONS VIEW -->
   <div id="view-suggestions" style="display:none;padding:2rem">
     <div class="stats-hdr">For <em>You</em></div>
-    <div class="stats-sub" id="sug-sub">Analysing your taste&hellip;</div>
-    <div id="sug-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.2rem;margin-top:1rem"></div>
+    <div class="stats-sub" id="sug-sub">&mdash;</div>
+
+    <!-- Last.fm API key prompt -->
+    <div id="sug-apikey-box" style="display:none;margin-bottom:1.5rem;padding:1.2rem 1.5rem;
+      background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+      border:1px solid var(--glass-border);border-radius:var(--radius);max-width:500px">
+      <div style="font-size:9px;letter-spacing:.18em;color:var(--muted);margin-bottom:.6rem">LAST.FM API KEY REQUIRED</div>
+      <div style="font-size:11px;color:var(--ink2);margin-bottom:.8rem;text-transform:none;font-weight:400;line-height:1.6">
+        Spindle uses Last.fm to find music similar to what you own.
+        Get a free key in 30 seconds at
+        <a href="https://www.last.fm/api/account/create" target="_blank"
+          style="color:var(--accent);text-decoration:none">last.fm/api/account/create</a>
+        &mdash; no credit card, instant.
+      </div>
+      <div style="display:flex;gap:8px">
+        <input id="lastfm-key-input" type="text" placeholder="Paste your Last.fm API key here"
+          style="flex:1;background:rgba(255,255,255,.5);border:1px solid var(--glass-border-strong);
+          color:var(--ink);font-family:var(--font-body);font-size:11px;font-weight:400;letter-spacing:.02em;
+          text-transform:none;padding:9px 12px;border-radius:8px;outline:none">
+        <button id="lastfm-key-save" style="padding:9px 16px;
+          background:linear-gradient(135deg,rgba(124,58,237,.8),rgba(14,165,233,.7));
+          border:1px solid rgba(124,58,237,.4);border-radius:8px;color:#fff;
+          font-family:var(--font-body);font-weight:800;font-size:9px;
+          letter-spacing:.15em;text-transform:uppercase;cursor:pointer;white-space:nowrap">
+          Save &amp; Go
+        </button>
+      </div>
+    </div>
+
+    <div id="sug-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.2rem;margin-top:.5rem"></div>
   </div>
 
   <footer class="footer">
@@ -1232,9 +1264,11 @@ function buildCard(album, idx) {
     '</div>';
 
   var cov = wrap.querySelector('.cov');
-  cov.addEventListener('mouseenter', function() { onHoverIn(album, wrap, cov); });
-  cov.addEventListener('mouseleave', function() { onHoverOut(album, wrap); });
-  // full-res loaded from start
+  // Listeners on .card (the wrapper), not .cov (which scales via transform).
+  // CSS transform doesn't move the hit-area, so hovering near the edge of a
+  // scaled-up cover would fire mouseleave early and cut the audio short.
+  wrap.addEventListener('mouseenter', function() { onHoverIn(album, wrap, cov); });
+  wrap.addEventListener('mouseleave', function() { onHoverOut(album, wrap); });
   wrap.addEventListener('click', function() { openModal(album); });
   return wrap;
 }
@@ -1283,6 +1317,7 @@ function onHoverIn(album, card, covEl) {
       trackObj.audio.preload = 'auto';
     }
     var audio = trackObj.audio; curAudio = audio;
+    audio._stopId = (audio._stopId || 0) + 1; // cancel any pending fade-out
     audio.currentTime = 0; audio.volume = 0;
     audio.play().catch(function(){});
     fadeVol(audio, 0, VOL, FADE_S);
@@ -1295,7 +1330,15 @@ function onHoverIn(album, card, covEl) {
         if (audio.duration) fill.style.width = (audio.currentTime / audio.duration * 100) + '%';
       }, 400);
     }
-    audio.onended = function() { audio.pause(); audio.currentTime = 0; };
+    audio.onended = function() {
+      // Only restart if we're still hovering this card
+      if (curCard === card) {
+        audio.currentTime = 0;
+        audio.play().catch(function(){});
+      } else {
+        audio.currentTime = 0;
+      }
+    };
   }
 }
 
@@ -1321,7 +1364,13 @@ function hoverOutAll() {
 function stopAudio() {
   if (curAudio) {
     var a = curAudio;
-    fadeVol(a, a.volume, 0, FADE_S, function(){ a.pause(); a.currentTime = 0; });
+    // Tag this audio so a pending fade-out doesn't kill a fresh play
+    var stopId = (a._stopId || 0) + 1;
+    a._stopId = stopId;
+    fadeVol(a, a.volume, 0, FADE_S, function(){
+      // Only pause if no newer play has started on this element
+      if (a._stopId === stopId) { a.pause(); a.currentTime = 0; }
+    });
     curAudio = null;
   }
   stopSynth();
@@ -1644,250 +1693,294 @@ document.addEventListener('keydown', function(e) {
   if (e.key === ' ' && e.target.tagName !== 'INPUT') { e.preventDefault(); hoverOutAll(); }
 });
 
+// Last.fm key — persist across sessions
+(function() {
+  var saved = '';
+  try { saved = localStorage.getItem('spindle_lastfm_key') || ''; } catch(e) {}
+  if (saved) LASTFM_KEY = saved;
+
+  var saveBtn = gid('lastfm-key-save');
+  var keyInput = gid('lastfm-key-input');
+  if (saveBtn && keyInput) {
+    if (saved) keyInput.value = saved;
+    saveBtn.addEventListener('click', function() {
+      var k = keyInput.value.trim();
+      if (!k) return;
+      LASTFM_KEY = k;
+      try { localStorage.setItem('spindle_lastfm_key', k); } catch(e) {}
+      buildSuggestions(albums);
+    });
+    keyInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') saveBtn.click();
+    });
+  }
+})();
+
 /* ── INIT ────────────────────────────────── */
 show('setup');
 
 
 /* ══════════════════════════════════════════════════════════════════
-   TASTE ENGINE + DISC SUGGESTIONS
+   FOR YOU — Last.fm powered recommendation engine
+   
    Algorithm:
-   1. Build a taste profile from the collection (genres, decades,
-      top artists, obscure vs mainstream balance)
-   2. Generate targeted iTunes search queries that match the profile
-   3. Score results: deduct points for albums already owned,
-      add points for genre + decade + energy matches
-   4. Present top 5 with artist photo, tracklist preview, match reason
+   1. Take user's top artists from collection (most owned)
+   2. Call Last.fm artist.getSimilar for each → get a weighted list
+      of similar artists scored by Last.fm's similarity metric
+   3. Aggregate scores: an artist mentioned as similar to multiple
+      of your artists scores higher
+   4. Remove artists already in your collection
+   5. For each top candidate, search iTunes for their best album
+   6. Present 5 cards with artwork, reason, and Last.fm similarity score
 ══════════════════════════════════════════════════════════════════ */
 
-function buildTasteProfile(list) {
-  var genres = {}, artists = {}, decades = {}, labels = {};
-  var totalYears = [];
+var LASTFM_KEY = '';  // set by user in the For You page
 
-  list.forEach(function(a) {
-    (a.genres || []).concat(a.styles || []).forEach(function(g) { genres[g] = (genres[g] || 0) + 1; });
-    if (a.artist) artists[a.artist] = (artists[a.artist] || 0) + 1;
-    if (a.year) { decades[Math.floor(a.year / 10) * 10] = (decades[Math.floor(a.year / 10) * 10] || 0) + 1; totalYears.push(a.year); }
-    (a.labels || []).forEach(function(l) { labels[l] = (labels[l] || 0) + 1; });
-  });
-
-  var sortedGenres = Object.keys(genres).sort(function(a, b) { return genres[b] - genres[a]; });
-  var sortedArtists = Object.keys(artists).sort(function(a, b) { return artists[b] - artists[a]; });
-  var sortedDecades = Object.keys(decades).map(Number).sort(function(a, b) { return decades[b] - decades[a]; });
-  var avgYear = totalYears.length ? Math.round(totalYears.reduce(function(a, b) { return a + b; }, 0) / totalYears.length) : 1990;
-
-  // Determine if collection is niche/experimental or mainstream
-  var experimentalGenres = ['Noise', 'Experimental', 'Avant-garde', 'Drone', 'Free Improvisation', 'Musique Concrète', 'Ambient', 'Abstract'];
-  var experimentalScore = experimentalGenres.reduce(function(s, g) { return s + (genres[g] || 0); }, 0);
-  var isExperimental = experimentalScore > list.length * 0.15;
-
-  return {
-    topGenres: sortedGenres.slice(0, 8),
-    topArtists: sortedArtists.slice(0, 5),
-    topDecade: sortedDecades[0] || 1990,
-    avgYear: avgYear,
-    isExperimental: isExperimental,
-    genreMap: genres,
-    artistMap: artists,
-    ownedTitles: list.map(function(a) { return (a.artist + ' ' + a.title).toLowerCase(); })
-  };
+async function lastfmSimilar(artistName) {
+  var url = 'https://ws.audioscrobbler.com/2.0/?method=artist.getSimilar'
+    + '&artist=' + encodeURIComponent(artistName)
+    + '&limit=20'
+    + '&api_key=' + encodeURIComponent(LASTFM_KEY)
+    + '&format=json';
+  try {
+    var res = await fetch(url);
+    if (!res.ok) return [];
+    var d = await res.json();
+    if (d.error || !d.similarartists || !d.similarartists.artist) return [];
+    var list = d.similarartists.artist;
+    if (!Array.isArray(list)) list = [list];
+    return list.map(function(a) {
+      return { name: a.name, match: parseFloat(a.match) || 0 };
+    });
+  } catch(e) { return []; }
 }
 
-// Map collection genres → iTunes search terms + sibling genres to discover
-var GENRE_DISCOVERY = {
-  'Trip Hop':        ['Portishead', 'Tricky', 'Massive Attack', 'Wax Tailor', 'DJ Krush'],
-  'Electronic':      ['Boards of Canada', 'Four Tet', 'Jon Hopkins', 'Floating Points', 'Tycho'],
-  'Ambient':         ['Brian Eno', 'Stars of the Lid', 'Harold Budd', 'William Basinski', 'The Caretaker'],
-  'IDM':             ['Autechre', 'Aphex Twin', 'Squarepusher', 'Plaid', 'Prefuse 73'],
-  'Post-Rock':       ['Godspeed You Black Emperor', 'Mogwai', 'Explosions in the Sky', 'Sigur Ros', 'Slint'],
-  'Alternative Rock':['Radiohead', 'Pavement', 'Built to Spill', 'Guided by Voices', 'Dinosaur Jr'],
-  'Art Rock':        ['Talk Talk', 'Scott Walker', 'Peter Gabriel', 'David Bowie', 'Kate Bush'],
-  'Jazz':            ['Miles Davis', 'John Coltrane', 'Charles Mingus', 'Thelonious Monk', 'Bill Evans'],
-  'Hip Hop':         ['J Dilla', 'Madlib', 'Mos Def', 'De La Soul', 'ATCQ'],
-  'Soul':            ['Marvin Gaye', 'Al Green', 'Curtis Mayfield', 'Aretha Franklin', 'Bill Withers'],
-  'Funk':            ['Parliament', 'James Brown', 'Sly and the Family Stone', 'Herbie Hancock', 'Roy Ayers'],
-  'Krautrock':       ['Can', 'Neu!', 'Faust', 'Cluster', 'Harmonia'],
-  'Folk':            ['Nick Drake', 'John Martyn', 'Bert Jansch', 'Tim Buckley', 'Vashti Bunyan'],
-  'Shoegaze':        ['My Bloody Valentine', 'Slowdive', 'Ride', 'Lush', 'Chapterhouse'],
-  'Indie Pop':       ['Belle and Sebastian', 'Camera Obscura', 'The Magnetic Fields', 'Yo La Tengo', 'Teenage Fanclub'],
-  'Post-Punk':       ['Joy Division', 'Wire', 'Gang of Four', 'The Fall', 'Magazine'],
-  'Classical':       ['Arvo Pärt', 'Philip Glass', 'Steve Reich', 'Nils Frahm', 'Johann Johannsson'],
-  'Reggae':          ['Augustus Pablo', 'Lee Scratch Perry', 'King Tubby', 'Burning Spear', 'Culture'],
-  'Plunderphonics':  ['The Avalanches', 'Girl Talk', 'DJ Shadow', 'Steinski', 'Beck'],
-  'Abstract':        ['DJ Shadow', 'Prefuse 73', 'El-P', 'RJD2', 'Nobody'],
-};
-
-// Generate 5 smart search queries based on taste profile
-function buildSearchQueries(profile) {
-  var queries = [];
-  var used = {};
-
-  // Strategy 1: Artists similar to top collection artists (but not owned)
-  profile.topArtists.slice(0, 3).forEach(function(artist) {
-    // Find their genre and pick a sibling artist
-    var genreArtists = null;
-    Object.keys(GENRE_DISCOVERY).forEach(function(g) {
-      if (profile.topGenres.indexOf(g) >= 0 && !genreArtists) {
-        genreArtists = GENRE_DISCOVERY[g];
-      }
-    });
-    if (genreArtists) {
-      var candidates = genreArtists.filter(function(a) {
-        return a.toLowerCase() !== artist.toLowerCase() && !used[a];
-      });
-      if (candidates.length) {
-        var pick = candidates[Math.floor(Math.random() * Math.min(candidates.length, 3))];
-        used[pick] = 1;
-        queries.push({ artist: pick, reason: 'Similar to ' + artist, genre: profile.topGenres[0] });
-      }
-    }
-  });
-
-  // Strategy 2: Deep cuts from top genres not yet covered
-  profile.topGenres.slice(0, 5).forEach(function(genre) {
-    if (queries.length >= 5) return;
-    var artists = GENRE_DISCOVERY[genre];
-    if (!artists) return;
-    var candidates = artists.filter(function(a) {
-      var aLow = a.toLowerCase();
-      return !used[a] && !profile.artistMap[a] &&
-        !profile.ownedTitles.some(function(t) { return t.indexOf(aLow) >= 0; });
-    });
-    if (candidates.length) {
-      var pick = candidates[Math.floor(Math.random() * Math.min(candidates.length, 3))];
-      used[pick] = 1;
-      queries.push({ artist: pick, reason: 'Matches your ' + genre + ' taste', genre: genre });
-    }
-  });
-
-  // Strategy 3: Era-matched wild card if we still need more
-  if (queries.length < 5) {
-    var eraGenre = profile.topGenres[0] || 'Electronic';
-    var eraArtists = GENRE_DISCOVERY[eraGenre] || [];
-    eraArtists.filter(function(a) { return !used[a]; }).slice(0, 5 - queries.length).forEach(function(a) {
-      queries.push({ artist: a, reason: 'From your favourite era', genre: eraGenre });
-    });
-  }
-
-  return queries.slice(0, 5);
+async function lastfmTopTags(artistName) {
+  var url = 'https://ws.audioscrobbler.com/2.0/?method=artist.getTopTags'
+    + '&artist=' + encodeURIComponent(artistName)
+    + '&api_key=' + encodeURIComponent(LASTFM_KEY)
+    + '&format=json';
+  try {
+    var res = await fetch(url);
+    if (!res.ok) return [];
+    var d = await res.json();
+    if (!d.toptags || !d.toptags.tag) return [];
+    var tags = d.toptags.tag;
+    if (!Array.isArray(tags)) tags = [tags];
+    return tags.slice(0, 5).map(function(t) { return t.name; });
+  } catch(e) { return []; }
 }
 
-async function fetchSuggestionForArtist(query, profile) {
-  var term = encodeURIComponent(query.artist);
-  var url = 'https://itunes.apple.com/search?term=' + term + '&media=music&entity=album&limit=8&version=2';
+async function fetchAlbumForArtist(artistName, ownedTitles) {
+  var url = 'https://itunes.apple.com/search?term='
+    + encodeURIComponent(artistName)
+    + '&media=music&entity=album&limit=10&version=2';
   try {
     var res = await fetch(url);
     var d = await res.json();
     if (!d.results || !d.results.length) return null;
-
-    // Filter: not already in collection
-    var candidates = d.results.filter(function(r) {
-      if (!r.collectionName || !r.artworkUrl100) return false;
-      var key = (r.artistName + ' ' + r.collectionName).toLowerCase();
-      return !profile.ownedTitles.some(function(t) { return t.indexOf(r.collectionName.toLowerCase()) >= 0; });
-    });
-
-    if (!candidates.length) return null;
-
-    // Pick highest-quality result (most reviews → mainstream signal)
-    var best = candidates[0];
-    return {
-      title: best.collectionName,
-      artist: best.artistName,
-      year: best.releaseDate ? best.releaseDate.slice(0, 4) : '—',
-      artwork: best.artworkUrl100.replace('100x100', '400x400'),
-      genre: best.primaryGenreName || query.genre,
-      itunesUrl: best.collectionViewUrl,
-      reason: query.reason
-    };
-  } catch(e) { return null; }
+    // Pick first album not already owned
+    for (var i = 0; i < d.results.length; i++) {
+      var r = d.results[i];
+      if (!r.collectionName || !r.artworkUrl100) continue;
+      var titleLow = r.collectionName.toLowerCase();
+      var alreadyOwned = ownedTitles.some(function(t) {
+        return t.indexOf(titleLow) >= 0 || titleLow.indexOf(t.split(' ').slice(0,2).join(' ')) >= 0;
+      });
+      if (!alreadyOwned) return {
+        title:     r.collectionName,
+        artist:    r.artistName,
+        year:      r.releaseDate ? r.releaseDate.slice(0,4) : '—',
+        artwork:   r.artworkUrl100.replace('100x100bb', '400x400bb'),
+        itunesUrl: r.collectionViewUrl
+      };
+    }
+  } catch(e) {}
+  return null;
 }
 
 async function buildSuggestions(list) {
-  var grid = gid('sug-grid');
-  var sub = gid('sug-sub');
+  var grid   = gid('sug-grid');
+  var sub    = gid('sug-sub');
+  var apiBox = gid('sug-apikey-box');
   if (!grid) return;
 
-  // Show skeleton while loading
+  // Show API key prompt if not set
+  if (!LASTFM_KEY) {
+    grid.innerHTML = '';
+    sub.textContent = 'A free Last.fm API key is needed for real recommendations';
+    if (apiBox) apiBox.style.display = 'block';
+    return;
+  }
+  if (apiBox) apiBox.style.display = 'none';
+
+  // Show skeletons
   grid.innerHTML = '';
-  sub.textContent = 'Analysing your taste…';
+  sub.textContent = 'Finding music you\'ll love\u2026';
   for (var s = 0; s < 5; s++) {
     var sk = document.createElement('div');
     sk.className = 'chart-card';
-    sk.innerHTML = '<div style="display:flex;gap:12px;align-items:flex-start">' +
-      '<div class="skc" style="width:80px;height:80px;flex-shrink:0;border-radius:10px"></div>' +
-      '<div style="flex:1"><div class="skl" style="width:80%;margin-top:0"></div><div class="skl" style="width:55%;margin-top:8px"></div><div class="skl" style="width:40%;margin-top:8px"></div></div>' +
-      '</div>';
+    sk.innerHTML =
+      '<div style="display:flex;gap:12px;align-items:flex-start">'
+      + '<div class="skc" style="width:80px;height:80px;flex-shrink:0;border-radius:10px;aspect-ratio:unset"></div>'
+      + '<div style="flex:1"><div class="skl" style="width:80%;margin-top:0"></div>'
+      + '<div class="skl" style="width:55%;margin-top:8px"></div>'
+      + '<div class="skl" style="width:40%;margin-top:8px"></div></div>'
+      + '</div>';
     grid.appendChild(sk);
   }
 
-  var profile = buildTasteProfile(list);
-  sub.textContent = profile.topGenres.slice(0, 3).join(' · ') + ' · ' + profile.topDecade + 's · ' + list.length + ' records analysed';
+  // Step 1: profile the collection
+  var artistCount = {};
+  var ownedTitles = [];
+  var ownedArtists = {};
 
-  var queries = buildSearchQueries(profile);
-  var results = [];
-  for (var i = 0; i < queries.length; i++) {
-    var result = await fetchSuggestionForArtist(queries[i], profile);
-    if (result) results.push(result);
+  list.forEach(function(a) {
+    if (a.artist) {
+      artistCount[a.artist] = (artistCount[a.artist] || 0) + 1;
+      ownedArtists[a.artist.toLowerCase()] = 1;
+    }
+    ownedTitles.push((a.artist + ' ' + a.title).toLowerCase());
+  });
+
+  // Top 6 artists by count to seed Last.fm queries
+  var seedArtists = Object.keys(artistCount)
+    .sort(function(a,b) { return artistCount[b] - artistCount[a]; })
+    .slice(0, 6);
+
+  sub.textContent = 'Analysing ' + seedArtists.slice(0,3).join(', ') + '\u2026';
+
+  // Step 2: fetch similar artists from Last.fm for each seed
+  var scoreMap = {}; // artistName → cumulative similarity score
+  var reasonMap = {}; // artistName → "because you like X"
+
+  for (var si = 0; si < seedArtists.length; si++) {
+    var seed = seedArtists[si];
+    var similars = await lastfmSimilar(seed);
+    similars.forEach(function(s) {
+      var nameLow = s.name.toLowerCase();
+      if (ownedArtists[nameLow]) return; // skip artists already owned
+      scoreMap[s.name] = (scoreMap[s.name] || 0) + s.match;
+      if (!reasonMap[s.name]) reasonMap[s.name] = seed;
+    });
     await sleep(120);
   }
 
+  // Step 3: rank by aggregated score, take top 10 candidates
+  var ranked = Object.keys(scoreMap)
+    .sort(function(a,b) { return scoreMap[b] - scoreMap[a]; })
+    .slice(0, 10);
+
+  if (!ranked.length) {
+    grid.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:1rem 0;text-transform:none;font-weight:400">'
+      + 'Last.fm returned no similar artists. Check that your API key is correct, '
+      + 'or try the demo mode to test with sample albums.</div>';
+    return;
+  }
+
+  sub.textContent = 'Found ' + ranked.length + ' candidates \u2014 matching to albums\u2026';
+
+  // Step 4: for each candidate find an iTunes album + Last.fm tags
+  var results = [];
+  for (var ri = 0; ri < ranked.length && results.length < 5; ri++) {
+    var candidate = ranked[ri];
+    var album = await fetchAlbumForArtist(candidate, ownedTitles);
+    if (!album) { await sleep(80); continue; }
+    var tags = await lastfmTopTags(candidate);
+    var pct  = Math.round(scoreMap[candidate] * 100);
+    results.push({
+      album:    album,
+      because:  reasonMap[candidate],
+      tags:     tags.slice(0, 3),
+      score:    pct
+    });
+    await sleep(100);
+  }
+
+  // Step 5: render
   grid.innerHTML = '';
+  sub.textContent = 'Based on ' + seedArtists.slice(0,3).join(', ')
+    + (seedArtists.length > 3 ? ' + ' + (seedArtists.length - 3) + ' more' : '');
 
   if (!results.length) {
-    grid.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:1rem">Could not load suggestions. Try again later.</div>';
-    return;
+    grid.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:1rem;text-transform:none;font-weight:400">'
+      + 'Could not find album matches for these artists. Try Refresh.</div>';
   }
 
   results.forEach(function(r, i) {
     var card = document.createElement('div');
     card.className = 'chart-card';
-    card.style.cssText = 'cursor:pointer;transition:transform .2s,box-shadow .2s;animation:ci .4s ease both;animation-delay:' + (i * 80) + 'ms';
-    card.innerHTML =
-      '<div style="display:flex;gap:14px;align-items:flex-start">' +
-        '<img src="' + esc(r.artwork) + '" alt="' + esc(r.title) + '" ' +
-          'style="width:90px;height:90px;border-radius:10px;object-fit:cover;flex-shrink:0;' +
-          'border:1px solid var(--glass-border);box-shadow:0 4px 16px rgba(0,0,0,.15)" ' +
-          'onerror="this.style.display=\'none\'">' +
-        '<div style="flex:1;min-width:0">' +
-          '<div style="font-size:8px;letter-spacing:.16em;color:var(--accent);margin-bottom:4px">' + esc(r.reason) + '</div>' +
-          '<div style="font-size:13px;font-weight:800;letter-spacing:.04em;color:var(--ink);line-height:1.2;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(r.title) + '</div>' +
-          '<div style="font-size:10px;color:var(--ink2);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(r.artist) + '</div>' +
-          '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
-            '<span style="font-size:7px;letter-spacing:.12em;padding:2px 8px;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.25);border-radius:6px;color:var(--accent)">' + esc(r.genre) + '</span>' +
-            '<span style="font-size:7px;letter-spacing:.12em;padding:2px 8px;background:var(--glass);border:1px solid var(--glass-border);border-radius:6px;color:var(--muted)">' + esc(r.year) + '</span>' +
-          '</div>' +
-        '</div>' +
-      '</div>' +
-      '<a href="' + esc(r.itunesUrl) + '" target="_blank" ' +
-        'style="display:block;margin-top:12px;padding:8px;text-align:center;' +
-        'background:linear-gradient(135deg,rgba(124,58,237,.18),rgba(14,165,233,.14));' +
-        'border:1px solid rgba(124,58,237,.3);border-radius:8px;' +
-        'class="sug-link">View on iTunes &rarr;</a>';
+    card.style.cssText = 'transition:transform .2s,box-shadow .2s;animation:ci .4s ease both;animation-delay:' + (i*80) + 'ms';
 
-    card.addEventListener('mouseenter', function() { card.style.transform = 'translateY(-3px)'; card.style.boxShadow = '0 12px 32px rgba(0,0,0,.2)'; });
-    card.addEventListener('mouseleave', function() { card.style.transform = ''; card.style.boxShadow = ''; });
+    var tagsHtml = r.tags.map(function(t) {
+      return '<span style="font-size:7px;letter-spacing:.12em;padding:2px 8px;'
+        + 'background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.25);'
+        + 'border-radius:6px;color:var(--accent)">' + esc(t) + '</span>';
+    }).join('');
+
+    var matchBar = '<div style="margin-top:8px;display:flex;align-items:center;gap:7px">'
+      + '<div style="flex:1;height:3px;background:rgba(0,0,0,.08);border-radius:2px;overflow:hidden">'
+        + '<div style="height:100%;width:' + Math.min(100, r.score * 3) + '%;'
+        + 'background:linear-gradient(90deg,#7c3aed,#0ea5e9);border-radius:2px"></div>'
+      + '</div>'
+      + '<span style="font-size:8px;color:var(--muted);flex-shrink:0">'
+        + r.score + '% match</span>'
+      + '</div>';
+
+    card.innerHTML =
+      '<div style="display:flex;gap:14px;align-items:flex-start">'
+        + '<img src="' + esc(r.album.artwork) + '" alt="' + esc(r.album.title) + '" '
+          + 'style="width:90px;height:90px;border-radius:10px;object-fit:cover;flex-shrink:0;'
+          + 'border:1px solid var(--glass-border);box-shadow:0 4px 16px rgba(0,0,0,.15)" '
+          + 'onerror="this.style.opacity=\'0\'">'
+        + '<div style="flex:1;min-width:0">'
+          + '<div style="font-size:8px;letter-spacing:.14em;color:var(--accent);margin-bottom:4px">'
+            + 'Because you like ' + esc(r.because) + '</div>'
+          + '<div style="font-size:13px;font-weight:800;letter-spacing:.04em;color:var(--ink);'
+            + 'line-height:1.2;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
+            + esc(r.album.title) + '</div>'
+          + '<div style="font-size:10px;color:var(--ink2);margin-bottom:5px;white-space:nowrap;'
+            + 'overflow:hidden;text-overflow:ellipsis">' + esc(r.album.artist) + '</div>'
+          + '<div style="display:flex;gap:5px;flex-wrap:wrap">'
+            + tagsHtml
+            + '<span style="font-size:7px;letter-spacing:.1em;padding:2px 8px;'
+              + 'background:var(--glass);border:1px solid var(--glass-border);'
+              + 'border-radius:6px;color:var(--muted)">' + esc(r.album.year) + '</span>'
+          + '</div>'
+          + matchBar
+        + '</div>'
+      + '</div>'
+      + '<a href="' + esc(r.album.itunesUrl) + '" target="_blank" class="sug-link">'
+        + 'Listen on iTunes &rarr;</a>';
+
+    card.addEventListener('mouseenter', function() {
+      card.style.transform = 'translateY(-3px)';
+      card.style.boxShadow = '0 12px 32px rgba(0,0,0,.2)';
+    });
+    card.addEventListener('mouseleave', function() {
+      card.style.transform = '';
+      card.style.boxShadow = '';
+    });
     grid.appendChild(card);
   });
 
   // Refresh button
   var refresh = document.createElement('button');
-  refresh.style.cssText = 'margin-top:1rem;grid-column:1/-1;padding:10px 20px;background:var(--glass);' +
-    'border:1px solid var(--glass-border);border-radius:10px;color:var(--muted);' +
-    'font-family:var(--font-body);font-weight:700;font-size:9px;letter-spacing:.15em;text-transform:uppercase;cursor:pointer;width:100%';
+  refresh.className = 'breset';
+  refresh.style.cssText = 'margin-top:.8rem;width:100%;padding:10px;font-size:9px;letter-spacing:.15em';
   refresh.textContent = 'Refresh Suggestions';
   refresh.addEventListener('click', function() { buildSuggestions(albums); });
   grid.appendChild(refresh);
 }
 
-/* Show cache status on setup screen ─────── */
+/* Show cache hint on setup ─────────────────── */
 function showCacheHint() {
   var stored = [];
   try {
     for (var k in localStorage) {
-      if (k.startsWith('spindle_matches_')) {
-        var user = k.replace('spindle_matches_', '');
-        var data = JSON.parse(localStorage.getItem(k) || '{}');
-        var count = Object.keys(data).length;
+      if (k.indexOf('spindle_matches_') === 0) {
+        var user  = k.replace('spindle_matches_', '');
+        var count = Object.keys(JSON.parse(localStorage.getItem(k) || '{}')).length;
         if (count > 0) stored.push(user + ' (' + count + ' matched)');
       }
     }
@@ -1896,11 +1989,12 @@ function showCacheHint() {
     var hint = gid('errbox');
     if (hint) {
       hint.style.display = 'block';
-      hint.style.background = 'rgba(14,165,233,.08)';
+      hint.style.background  = 'rgba(14,165,233,.08)';
       hint.style.borderColor = 'rgba(14,165,233,.25)';
-      hint.style.color = 'rgba(14,165,233,.9)';
-      hint.innerHTML = '&#10003; Cached matches found for: ' + stored.join(', ') + '<br>' +
-        '<span style="font-size:9px;opacity:.7;text-transform:none;font-weight:400">Audio will load instantly &mdash; no re-matching needed</span>';
+      hint.style.color       = 'rgba(14,165,233,.9)';
+      hint.innerHTML = '&#10003; Cached matches for: ' + stored.join(', ')
+        + '<br><span style="font-size:9px;opacity:.7;text-transform:none;font-weight:400">'
+        + 'Audio will load instantly \u2014 no re-matching needed</span>';
     }
   }
 }
