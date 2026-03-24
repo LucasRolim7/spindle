@@ -935,6 +935,7 @@ var BG_BASE = ''; // glow handled via #glow-blob
 
 /* ── STATE ───────────────────────────────── */
 var albums = [], aMap = {}, colorCache = {}, lastTrackIdx = {};
+var preloadPool = {}; // url → {audio: HTMLAudioElement, ready: bool}
 var curAudio = null, curCard = null, progTimer = null;
 var activeFilter = 'all', activeProxy = null, useSynth = false;
 var discogsUser = '', discogsToken = '';
@@ -952,6 +953,24 @@ function saveMatches() {
     }
   });
   try { localStorage.setItem(cacheKey(), JSON.stringify(data)); } catch(e) {}
+}
+
+// Warm up an Audio element for a URL — call as soon as URL is known
+function preload(url) {
+  if (!url || preloadPool[url]) return;
+  var audio = new Audio();
+  audio.preload = 'auto';
+  audio.src = url;
+  audio.load();
+  preloadPool[url] = { audio: audio, ready: false };
+  audio.addEventListener('canplaythrough', function() {
+    preloadPool[url].ready = true;
+  }, { once: true });
+}
+
+function getPreloaded(url) {
+  if (!preloadPool[url]) preload(url); // start loading if not started yet
+  return preloadPool[url] ? preloadPool[url].audio : new Audio(url);
 }
 
 function loadCachedMatches() {
@@ -1217,10 +1236,10 @@ async function matchAudioBg(list) {
       updateAS(a.id, 'synth', 'synthesized');
 
     } else if (cache[a.id] && cache[a.id].length) {
-      // ✓ Cache hit — restore instantly, no network call needed
+      // ✓ Cache hit — restore instantly, start preloading audio in background
       var cached = cache[a.id];
       aMap[a.id] = cached;
-      // Audio created fresh on each hover
+      cached.forEach(function(t) { preload(t.url); }); // warm up immediately
       a.audioState = 'ready'; matched++;
       updateAS(a.id, 'ready', cached.length + ' track' + (cached.length > 1 ? 's' : '') + ' (cached)');
 
@@ -1230,7 +1249,7 @@ async function matchAudioBg(list) {
       if (tracks.length) {
         a.audioState = 'ready'; matched++;
         aMap[a.id] = tracks;
-        // No pre-created Audio objects — fresh ones created on each hover
+        tracks.forEach(function(t) { preload(t.url); }); // warm up immediately
         updateAS(a.id, 'ready', tracks.length + ' track' + (tracks.length > 1 ? 's' : ''));
         saveMatches(); // persist after each new match
       } else {
@@ -1390,12 +1409,13 @@ function onHoverIn(album, card, covEl) {
   } else if (aMap[album.id] && album.audioState === 'ready') {
     var trackObj = pickTrack(album.id);
     if (!trackObj) return;
-    // Always create a fresh Audio element — avoids stale state from
-    // previous plays and conflicting fade intervals
-    var audio = new Audio(trackObj.url);
+    // Use preloaded Audio element — already buffered, plays instantly
+    var audio = getPreloaded(trackObj.url);
+    audio.currentTime = 0;
     audio.volume = 0;
-    audio.play().catch(function(){});
     curAudio = audio;
+    var playPromise = audio.play();
+    if (playPromise) playPromise.catch(function(){});
     fadeVol(audio, 0, VOL, FADE_S);
     gid('np-trk').textContent = album.artist + ' — ' + (trackObj.track || album.title);
     gid('np').classList.add('on');
@@ -1404,9 +1424,9 @@ function onHoverIn(album, card, covEl) {
     if (fill) {
       progTimer = setInterval(function() {
         if (audio.duration) fill.style.width = (audio.currentTime / audio.duration * 100) + '%';
-      }, 400);
+      }, 300);
     }
-    // Loop the 30s preview while the card is still hovered
+    // Loop while still on this card
     audio.onended = function() {
       if (curCard === card && curAudio === audio) {
         audio.currentTime = 0;
@@ -1438,8 +1458,11 @@ function hoverOutAll() {
 function stopAudio() {
   if (curAudio) {
     var a = curAudio;
-    curAudio = null; // clear immediately so onended doesn't loop
-    fadeVol(a, a.volume, 0, FADE_S, function(){ a.pause(); });
+    curAudio = null;       // clear first so onended loop guard fires
+    a.onended = null;      // detach handler before fade so no spurious restart
+    var vol = a.volume;
+    // Quick fade then pause — keep element alive in preloadPool for instant replay
+    fadeVol(a, vol, 0, FADE_S, function() { a.pause(); });
   }
   stopSynth();
 }
@@ -1806,7 +1829,7 @@ gid('inp-token').addEventListener('keydown', function(e) { if(e.key === 'Enter')
 gid('btn-demo').addEventListener('click', function() { loadDemo(); });
 // btn-synth removed — demo always uses real iTunes audio
 gid('btn-reset').addEventListener('click', function() {
-  hoverOutAll(); aMap = {}; lastTrackIdx = {}; albums = []; colorCache = {};
+  hoverOutAll(); aMap = {}; lastTrackIdx = {}; albums = []; colorCache = {}; preloadPool = {};
   gid('ct').innerHTML = ''; gid('srow').style.display = 'none';
   discogsUser = ''; discogsToken = ''; clearGlow(); show('setup');
 });
