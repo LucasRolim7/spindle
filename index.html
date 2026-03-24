@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SPINDLE</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Platen</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@700;800;900&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -79,6 +79,7 @@ body::after{
   display:flex;flex-direction:column;
   align-items:center;justify-content:center;
   padding:2rem;
+  padding-bottom:4rem; /* space for credit line */
 }
 .ring{
   position:absolute;border-radius:50%;
@@ -595,6 +596,12 @@ body::after{
   backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
   align-items:center;justify-content:center;padding:1.5rem;
 }
+@media(max-width:640px){
+  #modal-overlay{padding:.5rem}
+  #modal{max-height:96vh;border-radius:16px}
+  .mhead{padding:1rem;gap:1rem}
+  .mbody{padding:.9rem 1rem}
+}
 #modal-overlay.on{display:flex}
 #modal{
   background:rgba(240,236,230,.88);
@@ -687,15 +694,76 @@ body::after{
 .breset:hover{border-color:var(--glass-border-strong);color:#fff}
 
 /* RESPONSIVE */
-@media(max-width:900px){
+
+/* Tablet — 3 cards */
+@media(max-width:960px){
   .card,.sk{width:calc((100vw - 3rem - 40px) / 3)}
+  .topbar{gap:.6rem;padding:.8rem 1.2rem}
+  .tr{display:none}
 }
-@media(max-width:600px){
-  .card,.sk{width:calc((100vw - 2rem - 20px) / 2)}
-  .topbar{padding:.8rem 1rem}
+
+/* Large phone — 2 cards */
+@media(max-width:640px){
+  .card,.sk{width:calc((100vw - 2.5rem - 20px) / 2)}
+  .card{padding:6px;margin:-6px}
+  .topbar{padding:.7rem 1rem;gap:.4rem}
   .np{display:none}
-  .hero{padding:1.5rem 1rem .8rem}
-  .cs{padding:1.5rem 1rem 4rem}
+  .nav-tabs{gap:2px}
+  .ntab{padding:4px 10px;font-size:7px}
+  .hero{padding:1.2rem 1rem .6rem;flex-direction:column;align-items:flex-start;gap:.6rem}
+  .ht{font-size:1.8rem}
+  .frow{gap:5px}
+  .fb{padding:4px 9px;font-size:8px}
+  .cs{padding:1.2rem 1rem 4rem;scroll-snap-type:x proximity}
+  .ct{gap:14px}
+  .srow{margin:.4rem 1rem .6rem;padding:.7rem 1rem;gap:1.2rem}
+  .sn{font-size:1.4rem}
+  .suggest-btn span{display:none}
+  .suggest-btn{padding:7px 10px}
+  .carr-btn{width:34px;height:34px;font-size:14px}
+  #view-stats{padding:1rem}
+  .charts-grid{grid-template-columns:1fr}
+  .stats-hdr{font-size:1.6rem}
+  #view-suggestions{padding:1rem}
+  .mhead{flex-wrap:wrap}
+  .mcover{width:80px;height:80px}
+  .mtitle{font-size:1.2rem}
+}
+
+/* Small phone — 1 card (full width browsing) */
+@media(max-width:420px){
+  .card,.sk{width:calc(100vw - 3rem)}
+  .card{padding:4px;margin:-4px}
+  .topbar{padding:.6rem .8rem}
+  .tlogo{font-size:1.2rem}
+  .cs{padding:1rem .8rem 3.5rem}
+  .ct{gap:10px}
+  .carr-prev{left:4px}
+  .carr-next{right:4px}
+  .hero{padding:1rem .8rem .5rem}
+  #view-stats,#view-suggestions{padding:.8rem}
+  .num-grid{grid-template-columns:repeat(2,1fr)}
+  .chart-card{padding:1rem 1.1rem}
+  .inner{padding:0 .2rem}
+}
+
+/* Touch: increase hit targets for better tap feel */
+@media(hover:none){
+  .card:hover .cov{transform:none;box-shadow:var(--sh-card)}
+  .card:hover .cov img{filter:saturate(.92)}
+  .card:hover .cov::before{opacity:0}
+  .card:hover .sleeve{left:-100%}
+  .card:hover .ov{opacity:0}
+  .card:hover .pr{opacity:0}
+  .card:hover .click-hint{opacity:0}
+  /* On touch, tapping plays audio inline instead of hover */
+  .card.playing .cov{transform:scale(1.04) translateY(-4px);box-shadow:0 16px 40px rgba(0,0,0,.25)}
+  .card.playing .ov{opacity:1}
+  .card.playing .pr{opacity:1}
+  .carr-btn{width:40px;height:40px}
+  .breset,.btn-sec,.btn-main{min-height:44px}
+  .ntab{min-height:36px;display:flex;align-items:center}
+  .fb{min-height:34px;display:flex;align-items:center}
 }
 </style>
 </head>
@@ -709,7 +777,7 @@ body::after{
   <div class="ring" style="width:400px;height:400px;top:50%;left:50%;transform:translate(-50%,-50%)"></div>
   <div class="ring" style="width:200px;height:200px;top:50%;left:50%;transform:translate(-50%,-50%)"></div>
   <div class="inner">
-    <div class="logo">SPIN<span>DLE</span></div>
+    <div class="logo">PLA<span>TEN</span></div>
     <div class="tagline">Your Discogs library &middot; alive with sound</div>
     <div class="field">
       <label>Discogs Username</label>
@@ -723,8 +791,12 @@ body::after{
     <button class="btn-main" id="btn-load">&#9654;&nbsp; Load My Library</button>
     <div id="errbox" class="errbox"></div>
     <div class="divider"></div>
-    <button class="btn-sec" id="btn-demo">&#9655;&nbsp; Try Demo (iTunes Previews)</button>
-    <button class="btn-sec" id="btn-synth" style="margin-top:0">&#9672;&nbsp; Try Demo (Synthesized Audio)</button>
+    <button class="btn-sec" id="btn-demo">&#9655;&nbsp; Try Demo</button>
+  </div>
+  <div style="position:absolute;bottom:1.4rem;left:50%;transform:translateX(-50%);
+    font-size:9px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;
+    font-family:var(--font-body);font-weight:400;white-space:nowrap;opacity:.55">
+    by Lucas Rolim
   </div>
 </section>
 
@@ -740,7 +812,7 @@ body::after{
 <!-- APP -->
 <main id="app">
   <nav class="topbar">
-    <div class="tlogo">SPIN<span>DLE</span></div>
+    <div class="tlogo">PLA<span>TEN</span></div>
     <div class="nav-tabs">
       <button class="ntab on" data-view="collection">Collection</button>
       <button class="ntab" data-view="stats">Stats</button>
@@ -868,7 +940,7 @@ var activeFilter = 'all', activeProxy = null, useSynth = false;
 var discogsUser = '', discogsToken = '';
 
 /* ── PERSISTENCE ─────────────────────────── */
-function cacheKey() { return 'spindle_matches_' + discogsUser; }
+function cacheKey() { return 'platen_matches_' + discogsUser; }
 
 function saveMatches() {
   if (!discogsUser) return;
@@ -1073,7 +1145,8 @@ function mapR(r) {
 /* ── ITUNES + AUDIO MATCHING ─────────────── */
 async function fetchPreviews(album) {
   // iTunes Search API — CORS-friendly, no auth needed
-  var term = encodeURIComponent(album.artist + ' ' + album.title);
+  var searchTerm = album.iTunesTerm || (album.artist + ' ' + album.title);
+  var term = encodeURIComponent(searchTerm);
   var url = 'https://itunes.apple.com/search?term=' + term + '&media=music&entity=song&limit=25&version=2';
   try {
     var res = await timedFetch(url, 10000);
@@ -1091,7 +1164,7 @@ async function fetchPreviews(album) {
           if (rAl.indexOf(al) >= 0 || al.indexOf(rAl) >= 0) score += 3;
           ar.split(' ').forEach(function(w){ if(w.length>2 && rAr.indexOf(w)>=0) score++; });
           al.split(' ').forEach(function(w){ if(w.length>2 && rAl.indexOf(w)>=0) score++; });
-          if (score >= 2) matched.push({url: r.previewUrl, track: r.trackName, score: score});
+          if (score >= 1) matched.push({url: r.previewUrl, track: r.trackName, score: score});
         }
         matched.sort(function(a,b){ return b.score - a.score; });
         var seen = {}, unique = [];
@@ -1147,12 +1220,7 @@ async function matchAudioBg(list) {
       // ✓ Cache hit — restore instantly, no network call needed
       var cached = cache[a.id];
       aMap[a.id] = cached;
-      cached.slice(0, 3).forEach(function(t) {
-        if (!t.audio) {
-          t.audio = new Audio(); t.audio.src = t.url;
-          t.audio.preload = 'auto'; t.audio.load();
-        }
-      });
+      // Audio created fresh on each hover
       a.audioState = 'ready'; matched++;
       updateAS(a.id, 'ready', cached.length + ' track' + (cached.length > 1 ? 's' : '') + ' (cached)');
 
@@ -1162,12 +1230,7 @@ async function matchAudioBg(list) {
       if (tracks.length) {
         a.audioState = 'ready'; matched++;
         aMap[a.id] = tracks;
-        tracks.slice(0, 3).forEach(function(t) {
-          if (!t.audio) {
-            t.audio = new Audio(); t.audio.src = t.url;
-            t.audio.preload = 'auto'; t.audio.load();
-          }
-        });
+        // No pre-created Audio objects — fresh ones created on each hover
         updateAS(a.id, 'ready', tracks.length + ' track' + (tracks.length > 1 ? 's' : ''));
         saveMatches(); // persist after each new match
       } else {
@@ -1269,7 +1332,23 @@ function buildCard(album, idx) {
   // scaled-up cover would fire mouseleave early and cut the audio short.
   wrap.addEventListener('mouseenter', function() { onHoverIn(album, wrap, cov); });
   wrap.addEventListener('mouseleave', function() { onHoverOut(album, wrap); });
-  wrap.addEventListener('click', function() { openModal(album); });
+
+  // Touch: first tap plays/stops audio, second tap opens modal
+  wrap.addEventListener('click', function(e) {
+    var isTouch = window.matchMedia('(hover: none)').matches;
+    if (isTouch) {
+      if (curCard === wrap) {
+        // already playing — open modal
+        openModal(album);
+      } else {
+        // start playing
+        hoverOutAll();
+        onHoverIn(album, wrap, cov);
+      }
+    } else {
+      openModal(album);
+    }
+  });
   return wrap;
 }
 
@@ -1311,15 +1390,12 @@ function onHoverIn(album, card, covEl) {
   } else if (aMap[album.id] && album.audioState === 'ready') {
     var trackObj = pickTrack(album.id);
     if (!trackObj) return;
-    if (!trackObj.audio) {
-      trackObj.audio = new Audio();
-      trackObj.audio.src = trackObj.url;
-      trackObj.audio.preload = 'auto';
-    }
-    var audio = trackObj.audio; curAudio = audio;
-    audio._stopId = (audio._stopId || 0) + 1; // cancel any pending fade-out
-    audio.currentTime = 0; audio.volume = 0;
+    // Always create a fresh Audio element — avoids stale state from
+    // previous plays and conflicting fade intervals
+    var audio = new Audio(trackObj.url);
+    audio.volume = 0;
     audio.play().catch(function(){});
+    curAudio = audio;
     fadeVol(audio, 0, VOL, FADE_S);
     gid('np-trk').textContent = album.artist + ' — ' + (trackObj.track || album.title);
     gid('np').classList.add('on');
@@ -1330,13 +1406,11 @@ function onHoverIn(album, card, covEl) {
         if (audio.duration) fill.style.width = (audio.currentTime / audio.duration * 100) + '%';
       }, 400);
     }
+    // Loop the 30s preview while the card is still hovered
     audio.onended = function() {
-      // Only restart if we're still hovering this card
-      if (curCard === card) {
+      if (curCard === card && curAudio === audio) {
         audio.currentTime = 0;
         audio.play().catch(function(){});
-      } else {
-        audio.currentTime = 0;
       }
     };
   }
@@ -1364,23 +1438,22 @@ function hoverOutAll() {
 function stopAudio() {
   if (curAudio) {
     var a = curAudio;
-    // Tag this audio so a pending fade-out doesn't kill a fresh play
-    var stopId = (a._stopId || 0) + 1;
-    a._stopId = stopId;
-    fadeVol(a, a.volume, 0, FADE_S, function(){
-      // Only pause if no newer play has started on this element
-      if (a._stopId === stopId) { a.pause(); a.currentTime = 0; }
-    });
-    curAudio = null;
+    curAudio = null; // clear immediately so onended doesn't loop
+    fadeVol(a, a.volume, 0, FADE_S, function(){ a.pause(); });
   }
   stopSynth();
 }
 
 function fadeVol(audio, from, to, dur, done) {
-  var steps = 14, intv = (dur*1000)/steps, delta = (to-from)/steps, s = 0;
+  var steps = 14, intv = Math.max(1, (dur*1000)/steps), delta = (to-from)/steps, s = 0;
   var t = setInterval(function() {
-    s++; audio.volume = Math.min(1, Math.max(0, from + delta*s));
-    if (s >= steps) { clearInterval(t); audio.volume = to; if (done) done(); }
+    s++;
+    audio.volume = Math.min(1, Math.max(0, from + delta*s));
+    if (s >= steps) {
+      clearInterval(t);
+      audio.volume = to;
+      if (done) done();
+    }
   }, intv);
 }
 
@@ -1620,34 +1693,105 @@ async function startLoad(user, token) {
   }
 }
 
-var DEMO = [
-  {id:1,releaseId:45504,title:"Mezzanine",artist:"Massive Attack",year:1998,yearDisplay:"1998",genres:["Electronic"],styles:["Trip Hop"],labels:["Virgin"],formats:["CD"],cover:'',thumb:'',previewTracks:[],audioState:'pending'},
-  {id:2,releaseId:249504,title:"Dummy",artist:"Portishead",year:1994,yearDisplay:"1994",genres:["Electronic"],styles:["Trip Hop"],labels:["Go! Discs"],formats:["CD"],cover:'',thumb:'',previewTracks:[],audioState:'pending'},
-  {id:3,releaseId:5765473,title:"Selected Ambient Works Vol. II",artist:"Aphex Twin",year:1994,yearDisplay:"1994",genres:["Electronic"],styles:["Ambient"],labels:["Warp"],formats:["Vinyl"],cover:'',thumb:'',previewTracks:[],audioState:'pending'},
-  {id:4,releaseId:2830704,title:"Music Has the Right to Children",artist:"Boards of Canada",year:1998,yearDisplay:"1998",genres:["Electronic"],styles:["IDM"],labels:["Warp"],formats:["Vinyl"],cover:'',thumb:'',previewTracks:[],audioState:'pending'},
-  {id:5,releaseId:1551020,title:"In Rainbows",artist:"Radiohead",year:2007,yearDisplay:"2007",genres:["Rock"],styles:["Art Rock"],labels:["XL"],formats:["Vinyl"],cover:'',thumb:'',previewTracks:[],audioState:'pending'},
-  {id:6,releaseId:2440977,title:"xx",artist:"The xx",year:2009,yearDisplay:"2009",genres:["Indie Rock"],styles:["Indie Pop"],labels:["Young Turks"],formats:["CD"],cover:'',thumb:'',previewTracks:[],audioState:'pending'},
-  {id:7,releaseId:159753,title:"Since I Left You",artist:"The Avalanches",year:2000,yearDisplay:"2000",genres:["Electronic"],styles:["Plunderphonics"],labels:["Modular"],formats:["CD"],cover:'',thumb:'',previewTracks:[],audioState:'pending'},
-  {id:8,releaseId:529521,title:"OK Computer",artist:"Radiohead",year:1997,yearDisplay:"1997",genres:["Rock"],styles:["Alternative Rock"],labels:["Parlophone"],formats:["Vinyl"],cover:'',thumb:'',previewTracks:[],audioState:'pending'},
-  {id:9,releaseId:543457,title:"Homogenic",artist:"Björk",year:1997,yearDisplay:"1997",genres:["Electronic"],styles:["Art Pop"],labels:["One Little Indian"],formats:["CD"],cover:'',thumb:'',previewTracks:[],audioState:'pending'},
-  {id:10,releaseId:523743,title:"Endtroducing.....",artist:"DJ Shadow",year:1996,yearDisplay:"1996",genres:["Hip Hop"],styles:["Abstract"],labels:["Mo' Wax"],formats:["Vinyl"],cover:'',thumb:'',previewTracks:[],audioState:'pending'},
-  {id:11,releaseId:489387,title:"Blue Lines",artist:"Massive Attack",year:1991,yearDisplay:"1991",genres:["Electronic"],styles:["Trip Hop"],labels:["Wild Bunch"],formats:["CD"],cover:'',thumb:'',previewTracks:[],audioState:'pending'},
-  {id:12,releaseId:367204,title:"Spirit of Eden",artist:"Talk Talk",year:1988,yearDisplay:"1988",genres:["Rock"],styles:["Art Rock"],labels:["Parlophone"],formats:["CD"],cover:'',thumb:'',previewTracks:[],audioState:'pending'}
+/* ── DEMO CATALOGUE ─────────────────────────
+   iTunesId: numeric album ID from iTunes Store.
+   loadDemo() fetches cover + preview tracks directly from the iTunes
+   lookup API for each album — no Discogs, no scoring, guaranteed results.
+───────────────────────────────────────────── */
+var DEMO_CATALOGUE = [
+  {id:1,  title:"A Night at the Opera",              artist:"Queen",           year:1975, yearDisplay:"1975", genres:["Rock"],       styles:["Classic Rock","Arena Rock"],       labels:["EMI"],         formats:["Vinyl"], iTunesId:1440827740},
+  {id:2,  title:"Sgt. Pepper's Lonely Hearts Club Band", artist:"The Beatles", year:1967, yearDisplay:"1967", genres:["Rock"],       styles:["Psychedelic Rock","Pop Rock"],     labels:["Parlophone"],  formats:["Vinyl"], iTunesId:1441164670},
+  {id:3,  title:"DAMN.",                              artist:"Kendrick Lamar", year:2017, yearDisplay:"2017", genres:["Hip Hop"],    styles:["Conscious","Trap"],                labels:["TDE"],         formats:["CD"],    iTunesId:1223592280},
+  {id:4,  title:"Construcao",                        artist:"Chico Buarque",  year:1971, yearDisplay:"1971", genres:["Latin"],      styles:["MPB","Samba"],                     labels:["Philips"],     formats:["Vinyl"], iTunesId:null, iTunesTerm:"Construcao Chico Buarque"},
+  {id:5,  title:"Brat",                              artist:"Charli XCX",     year:2024, yearDisplay:"2024", genres:["Electronic"], styles:["Pop","Hyperpop"],                  labels:["Atlantic"],    formats:["CD"],    iTunesId:1750307512},
+  {id:6,  title:"The Dark Side of the Moon",         artist:"Pink Floyd",     year:1973, yearDisplay:"1973", genres:["Rock"],       styles:["Psychedelic Rock","Prog Rock"],    labels:["Harvest"],     formats:["Vinyl"], iTunesId:1065973699},
+  {id:7,  title:"Rumours",                           artist:"Fleetwood Mac",  year:1977, yearDisplay:"1977", genres:["Rock"],       styles:["Soft Rock","Pop Rock"],            labels:["Warner Bros"], formats:["Vinyl"], iTunesId:1440873231},
+  {id:8,  title:"21",                                artist:"Adele",          year:2011, yearDisplay:"2011", genres:["Pop"],        styles:["Soul","R&B"],                      labels:["XL"],          formats:["CD"],    iTunesId:1544494115},
+  {id:9,  title:"Lemonade",                          artist:"Beyonce",        year:2016, yearDisplay:"2016", genres:["R&B"],        styles:["Soul","Trap","Art Pop"],           labels:["Parkwood"],    formats:["CD"],    iTunesId:1183651519},
+  {id:10, title:"DtMF",                              artist:"Bad Bunny",      year:2025, yearDisplay:"2025", genres:["Latin"],      styles:["Reggaeton","Latin Trap"],          labels:["Rimas"],       formats:["CD"],    iTunesId:null, iTunesTerm:"DtMF Bad Bunny"}
 ];
 
-async function loadDemo(synth) {
-  useSynth = synth; show('loading'); setStatus('Loading demo…', 30);
-  albums = DEMO.map(function(a){ return Object.assign({}, a); });
-  await sleep(500);
+async function loadDemo() {
+  useSynth = false;
+  show('loading');
+  setStatus('Loading demo…', 5);
+
+  // Hydrate each album directly from iTunes — covers + previews in one shot
+  albums = [];
+  for (var di = 0; di < DEMO_CATALOGUE.length; di++) {
+    var d = Object.assign({}, DEMO_CATALOGUE[di]);
+    d.cover = ''; d.thumb = ''; d.previewTracks = []; d.audioState = 'pending';
+    d.releaseId = null;
+
+    var pct = 5 + Math.round((di / DEMO_CATALOGUE.length) * 80);
+    setStatus('Fetching ' + d.artist + '…', pct);
+    gid('lc').textContent = (di + 1) + ' / ' + DEMO_CATALOGUE.length;
+
+    try {
+      var lookupUrl = '';
+      if (d.iTunesId) {
+        // Direct lookup by collection ID — fastest, most accurate
+        lookupUrl = 'https://itunes.apple.com/lookup?id=' + d.iTunesId + '&entity=song&limit=20';
+      } else {
+        // Fallback: search by term
+        lookupUrl = 'https://itunes.apple.com/search?term=' + encodeURIComponent(d.iTunesTerm || (d.artist + ' ' + d.title))
+          + '&media=music&entity=song&limit=20&version=2';
+      }
+
+      var res = await fetch(lookupUrl);
+      var data = await res.json();
+      var results = data.results || [];
+
+      // For lookup by ID, first result is the album info, rest are tracks
+      // For search, all results are tracks
+      var albumInfo = null;
+      var tracks = [];
+
+      if (d.iTunesId && results.length > 0 && results[0].wrapperType === 'collection') {
+        albumInfo = results[0];
+        tracks = results.slice(1).filter(function(r){ return r.previewUrl; });
+      } else {
+        // From search: filter to tracks that match this album
+        var al = (d.iTunesTerm || d.title).toLowerCase();
+        tracks = results.filter(function(r){
+          return r.previewUrl && r.wrapperType === 'track';
+        });
+        if (tracks.length && tracks[0].artworkUrl100) albumInfo = tracks[0];
+      }
+
+      // Set cover from artwork (bump to 600x600 for best quality)
+      if (albumInfo && albumInfo.artworkUrl100) {
+        var art = albumInfo.artworkUrl100
+          .replace('100x100bb', '600x600bb')
+          .replace('/100x100/', '/600x600/');
+        d.cover = art; d.thumb = art;
+      }
+
+      // Store tracks for playback
+      if (tracks.length) {
+        aMap[d.id] = tracks.map(function(t){ return {url: t.previewUrl, track: t.trackName}; });
+        d.audioState = 'ready';
+      } else {
+        d.audioState = 'missing';
+      }
+    } catch(e) {
+      d.audioState = 'missing';
+    }
+
+    albums.push(d);
+    await sleep(80); // gentle rate limit between requests
+  }
+
+  setStatus('Rendering…', 92);
   show('app');
   gid('view-collection').style.display = 'block';
   gid('view-stats').style.display = 'none';
   gid('ht').innerHTML = '<em>Demo</em> collection';
   gid('hs').textContent = albums.length + ' albums · hover to preview · click for details';
   renderCarousel(albums);
-  updateStats(albums, 0);
+  var matched = albums.filter(function(a){ return a.audioState === 'ready'; }).length;
+  updateStats(albums, matched);
   buildStats(albums);
-  matchAudioBg(albums);
   preloadColors(albums);
 }
 
@@ -1659,8 +1803,8 @@ gid('btn-load').addEventListener('click', function() {
   startLoad(u, t);
 });
 gid('inp-token').addEventListener('keydown', function(e) { if(e.key === 'Enter') gid('btn-load').click(); });
-gid('btn-demo').addEventListener('click', function() { loadDemo(false); });
-gid('btn-synth').addEventListener('click', function() { loadDemo(true); });
+gid('btn-demo').addEventListener('click', function() { loadDemo(); });
+// btn-synth removed — demo always uses real iTunes audio
 gid('btn-reset').addEventListener('click', function() {
   hoverOutAll(); aMap = {}; lastTrackIdx = {}; albums = []; colorCache = {};
   gid('ct').innerHTML = ''; gid('srow').style.display = 'none';
@@ -1696,7 +1840,7 @@ document.addEventListener('keydown', function(e) {
 // Last.fm key — persist across sessions
 (function() {
   var saved = '';
-  try { saved = localStorage.getItem('spindle_lastfm_key') || ''; } catch(e) {}
+  try { saved = localStorage.getItem('platen_lastfm_key') || ''; } catch(e) {}
   if (saved) LASTFM_KEY = saved;
 
   var saveBtn = gid('lastfm-key-save');
@@ -1707,7 +1851,7 @@ document.addEventListener('keydown', function(e) {
       var k = keyInput.value.trim();
       if (!k) return;
       LASTFM_KEY = k;
-      try { localStorage.setItem('spindle_lastfm_key', k); } catch(e) {}
+      try { localStorage.setItem('platen_lastfm_key', k); } catch(e) {}
       buildSuggestions(albums);
     });
     keyInput.addEventListener('keydown', function(e) {
@@ -1978,8 +2122,8 @@ function showCacheHint() {
   var stored = [];
   try {
     for (var k in localStorage) {
-      if (k.indexOf('spindle_matches_') === 0) {
-        var user  = k.replace('spindle_matches_', '');
+      if (k.indexOf('platen_matches_') === 0) {
+        var user  = k.replace('platen_matches_', '');
         var count = Object.keys(JSON.parse(localStorage.getItem(k) || '{}')).length;
         if (count > 0) stored.push(user + ' (' + count + ' matched)');
       }
